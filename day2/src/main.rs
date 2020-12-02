@@ -18,9 +18,11 @@ fn main() {
     let lines = load_file(file_name);
     let passwords = collect_passwords(&lines);
 
-    let valid_passwords = count_valid_passwords(passwords);
-    
-    println!("{} valid passwords.", valid_passwords);
+    let part1_valid_passwords = count_valid_passwords(&passwords, true);
+    let part2_valid_passwords = count_valid_passwords(&passwords, false);
+
+    println!("Part1: {} valid passwords.", part1_valid_passwords);
+    println!("Part2: {} valid passwords.", part2_valid_passwords);
 
 }
 
@@ -51,7 +53,7 @@ fn collect_passwords(lines: &str) -> Vec<Password> {
 }
 
 
-fn valid_password(password: Password) -> bool {
+fn part1_valid_password(password: &Password) -> bool {
 
     let contains: Vec<&str> = password.password.matches(&password.requirement).collect();
     let len = contains.len();
@@ -64,13 +66,31 @@ fn valid_password(password: Password) -> bool {
 }
 
 
-fn count_valid_passwords(passwords: Vec<Password>) -> u32 {
+fn part2_valid_password(password: &Password) -> bool {
+    let characters: Vec<char> = password.password.chars().collect();
+
+    let pos1 = characters[password.min-1].to_string() == password.requirement;
+    let pos2 = characters[password.max-1].to_string() == password.requirement;
+
+    return pos1 ^ pos2;
+}
+
+
+fn count_valid_passwords(passwords: &Vec<Password>, part1: bool) -> u32 {
     let mut count = 0;
-        
+
     for password in passwords {
-        if valid_password(password) == true {
-            count += 1;
+
+        if part1 == true {
+            if part1_valid_password(&password) == true {
+                count += 1;
+            }
+        } else {
+            if part2_valid_password(&password) == true {
+                count += 1;
+            }
         }
+        
     }
 
     return count;
