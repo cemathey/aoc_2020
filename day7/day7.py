@@ -1,6 +1,5 @@
 import sys
 from typing import NamedTuple, Dict, List, Tuple
-from collections import namedtuple
 import string
 from pprint import pprint
 from collections import Counter
@@ -13,6 +12,15 @@ class Bag(NamedTuple):
     qty: int
 
 
+def sum_bags(starting_from: str, bag_rules: Dict[str, Tuple[Bag]]):
+    """Recursively sum the number of bags contained by the given starting_from bag"""
+    bag_sum = 0
+    for color, qty in bag_rules[starting_from]:
+        bag_sum += qty + qty * sum_bags(color, bag_rules)
+
+    return bag_sum
+
+
 def can_contain_bag(
     key: str, starting_from: str, bag_rules: Dict[str, Tuple[Bag]], found: bool = False
 ) -> bool:
@@ -23,7 +31,7 @@ def can_contain_bag(
 
     for color, qty in bag_rules[starting_from]:
         if key == color:
-            found = True
+            return True
         else:
             found = can_contain_bag(key, color, bag_rules, found)
 
@@ -42,10 +50,12 @@ if __name__ == "__main__":
         bag, children = line.split("contain")
 
         # Almost certainly slower but more readable than slicing off the end of strings
-        bag = bag.strip().replace("bags", "bag")  # Make the root name singular
+        # Make the bag name singular
+        bag = bag.strip().replace("bags", "bag")
 
         bags = []
-        for child in children.split(","): # Will still return a one element list even if `,` isn't found
+        # Will still return a one element list even if `,` isn't found
+        for child in children.split(","):
             child = child.strip()
             if child != EMPTY_BAG:
                 # Split on the first whitespace to get the quantity and color
@@ -57,10 +67,10 @@ if __name__ == "__main__":
         bag_rules[bag] = tuple(bags)
 
     # Iterate through all of the bag rules and count the number that can contain our target bag.
-    contains_bag = sum([
+    contains_bag = sum(
         can_contain_bag(target_bag, starting_from, bag_rules)
         for starting_from in bag_rules.keys()
-    ])
-
+    )
 
     print(f"Part 1: {contains_bag} bags can contain {target_bag}")
+    print(f"Part 2: {target_bag} contains {sum_bags(target_bag, bag_rules)} bags.")
