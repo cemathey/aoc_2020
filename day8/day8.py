@@ -18,7 +18,6 @@ def program_terminates_correctly(instructions: Tuple[Instruction]) -> Tuple[bool
     accumulator: int = 0
     instruction_pointer: int = 0
 
-    # Endlessly iterate (wrapping to beginning) the instructions
     while True:
 
         # Instruction pointer falls off the end of our instruction list
