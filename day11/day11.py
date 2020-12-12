@@ -33,7 +33,7 @@ def count_occupied_seats(
 ) -> int:
     """Count either the number of adjacent seats that are filled, or the number of visible seats that are filled."""
 
-    # Offsets to adjust the row/col indexes to check the appropriate parts of the board
+    # Offset functions to adjust the row/col indexes to check the appropriate parts of the board
     index_adjustments = [
         lambda row, col: (row, col + 1),
         lambda row, col: (row, col - 1),
