@@ -1,13 +1,19 @@
 import sys
 from pprint import pprint
-from typing import NamedTuple, Tuple, Dict, List
+from typing import NamedTuple, Tuple, Dict, List, Generator
 from collections import deque
 from functools import reduce
-from itertools import combinations, permutations
+from itertools import combinations, permutations, cycle
+from copy import deepcopy
 
 
 class Tile(NamedTuple):
     tile_id: int
+    size: int
+    pixels: Tuple[Tuple[str, ...], ...]
+
+
+class Image(NamedTuple):
     size: int
     pixels: Tuple[Tuple[str, ...], ...]
 
@@ -33,9 +39,9 @@ def build_tiles(file_name):
     return tiles
 
 
-def horizontal_flip(tile):
-    """Perform a horizontal flip (right to left) of the given tile and return the new, flipped tile."""
-    new_pixels = tuple(tuple(reversed(row)) for row in tile.pixels)
+def vertical_flip(tile):
+    """Perform a vertical flip (bottom to top) of the given tile and return the new, flipped tile."""
+    new_pixels = tuple(row for row in reversed(tile.pixels))
 
     return Tile(tile.tile_id, tile.size, new_pixels)
 
@@ -68,7 +74,7 @@ def rotate_tile(tile, degrees=90):
 
     times = degrees // 90
 
-    if times == 4:
+    if degrees == 360:
         return tile
 
     for _ in range(times):
@@ -97,108 +103,184 @@ def right_edge(tile: Tile) -> Tuple[str, ...]:
     return tuple(row[-1] for row in tile.pixels)
 
 
-def border_matches(tile_one: Tile, tile_two: Tile) -> int:
-    """Compare each edge of tile_one against each edge of tile_two and return the number of matches."""
-    matching_functions = (top_edge, bottom_edge, left_edge, right_edge)
-    count: int = 0
+def all_tile_orientations(tile: Tile) -> Generator:
+    """Yield all orientations of the given tile."""
+    # A horizontal and vertical flip == 180* rotation
+    yield tile
+    yield vertical_flip(tile)
 
-    # Compare all like edges
-    for matcher in matching_functions:
-        if matcher(tile_one) == matcher(tile_two):
-            count += 1
+    for degree in (90, 180, 270):
+        rotated_tile = rotate_tile(tile, degree)
+        yield rotated_tile
 
-    # Compare opposite edges
-    if left_edge(tile_one) == right_edge(tile_two):
-        count += 1
-
-    if right_edge(tile_one) == left_edge(tile_two):
-        count += 1
-
-    if top_edge(tile_one) == bottom_edge(tile_two):
-        count += 1
-
-    if bottom_edge(tile_one) == top_edge(tile_two):
-        count += 1
-
-    return count
+        v_flipped_tile = vertical_flip(rotated_tile)
+        yield v_flipped_tile
 
 
-def count_border_matches(tiles_lookup: Dict[int, Tile], tile: Tile):
-    """Compare the given tile against all other tiles, rotating and flipping them."""
-    count = 0
-    for test_tile_id in tiles_lookup.keys():
-        # Never check yourself
-        if test_tile_id == tile.tile_id:
-            continue
-        test_tile = tiles_lookup[test_tile_id]
-
-        # Rotate AND flip through all the orientations including the original (360)
-        for degree in (90, 180, 270, 360):
-            rotated_tile = rotate_tile(test_tile, degree)
-            h_flipped_tile = horizontal_flip(rotated_tile)
-            count += border_matches(tile, h_flipped_tile)
-
-    return count
+def rotate_flip_all_tiles(tiles_lookup: Dict[int, Tile]) -> Generator:
+    """Yield a tile in each orientation."""
+    for tile in tiles_lookup.values():
+        for oriented_tile in all_tile_orientations(tile):
+            yield oriented_tile
 
 
-def border_matches_counts(tiles_lookup: Dict[int, Tile]) -> List[int]:
-    """For each tile, count the number of borders that match other tiles."""
-    matching_borders_counts: List[int] = []
+def top_matching_tile(tiles_lookup, top_tile):
+    """From the given tile, find a tile whose top edge matches the bottom edge of top_tile or None."""
+    for potential_match in rotate_flip_all_tiles(tiles_lookup):
+        if bottom_edge(top_tile) == top_edge(potential_match):
+            return potential_match
 
-    # For each tile, iterate through every other tile in each of its orientations and count the matching borders
-    for tile_id in tiles_lookup.keys():
-        tile = tiles_lookup[tile_id]
-        count = count_border_matches(tiles_lookup, tile)
-        matching_borders_counts.append(count)
-
-    return matching_borders_counts
+    return None
 
 
-def find_corner_tiles(tiles_lookup):
-    matching_counts = border_matches_counts(tiles_lookup)
+def left_matching_tile(tiles_lookup, left_tile):
+    """From the given tile, find a tile whose left edge matches the right edge of left_tile or None."""
+    for potential_match in rotate_flip_all_tiles(tiles_lookup):
+        if right_edge(left_tile) == left_edge(potential_match):
+            return potential_match
 
-    corner_tiles = [
-        tile_id
-        for tile_id, matches in zip(tiles_lookup.keys(), matching_counts)
-        if matches == 2
-    ]
+    return None
 
-    return corner_tiles
+
+def top_left_corner_possibilities(tiles_lookup, tile):
+    """From the given corner tile, check all possible orientations for a valid grid fill starting from that orientation."""
+    oriented_tiles = list(all_tile_orientations(tile))
+    for top_left in all_tile_orientations(tile):
+        grid = attempt_grid_fill(tiles_lookup, top_left)
+        if grid:
+            return grid
+
+    return None
+
+
+def attempt_grid_fill(tiles_lookup, starting_tile):
+    """From the given tiles in tiles_lookup and a starting tile, attempt to fill the grid from left to right, top to bottom."""
+    grid_size = int(len(tiles_lookup) ** 0.5)
+    grid = [[None] * grid_size for _ in range(grid_size)]
+
+    # Make a copy of our available tiles so we can mutate it and remove the starting_tile from consideration
+    available_tiles = deepcopy(tiles_lookup)
+    del available_tiles[starting_tile.tile_id]
+
+    grid[0][0] = starting_tile
+    for i, row in enumerate(grid):
+        for j, cell in enumerate(row):
+            potential_match = None
+
+            # Top left corner is prefilled, skip it
+            if (i, j) == (0, 0):
+                continue
+
+            # The very first entry in every row needs to match the tile above it
+            if j == 0:
+                top_tile = grid[i - 1][j]
+                potential_match = top_matching_tile(available_tiles, top_tile)
+            # All other entries must match the right edge of the tile to the left
+            else:
+                left_tile = grid[i][j - 1]
+                potential_match = left_matching_tile(available_tiles, left_tile)
+
+            if potential_match:
+                grid[i][j] = potential_match
+                del available_tiles[potential_match.tile_id]
+            else:
+                # Unable to find a matching tile for the given grid cell
+                return None
+
+    return grid
+
+
+def remove_tile_borders(tile: Tile) -> Tile:
+    """Return a new tile with the borders of the original tile removed."""
+    new_pixels = []
+
+    # From the 2nd row to the 2nd to last row
+    # From the 2nd col to the 2nd to last col
+
+    for row in tile.pixels[1:-1]:
+        new_pixels.append(row[1:-1])
+
+    tile_size = len(new_pixels)
+    return Tile(tile.tile_id, tile_size, tuple(tuple(row) for row in new_pixels))
+
+
+def remove_borders(grid: Tuple[Tile, ...]):
+    borders_removed = []
+    for row in grid:
+        new_row = []
+        for tile in row:
+            new_row.append(remove_tile_borders(tile))
+        borders_removed.append(new_row)
+
+    return borders_removed
+
+
+def grab_corner_tiles(grid: Tuple[Tile, ...]):
+    return (grid[0][0], grid[0][-1], grid[-1][-1], grid[-1][0])
+
+
+def stitch_tiles(grid: Tuple[Tile, ...]) -> Image:
+    """Take the given grid of tiles, remove the border of each tile, and assemble them into one large tile."""
+    trimmed_grid = remove_borders(grid)
+    tile_size = trimmed_grid[0][0].size
+    image_size = len(trimmed_grid[0][0].pixels) * len(trimmed_grid[0])
+    pixels = [[None] * image_size for _ in range(image_size)]
+
+    i_offsets = cycle(range(8))
+    j_offsets = cycle(range(1, 24))
+
+    # Row 1
+    # tile 1:
+    # i=0 to i=7
+    # j=0 to j=7
+
+    # tile 1:
+    # i=0 to i=7
+    # j=8 to j=15
+
+    # tile 3:
+    # i=0 to i=7
+    # j=16 to j=23
+
+    # Row 2
+    # tile 4:
+    # i=8 to i=15
+    # j=0 to j=7
+
+    # tile 5:
+    # i=8 to i=15
+    # j=8 to j=15
+
+    # tile 6:
+    # i=8 to i=15
+    # j=16 to j=23
+
+    i_offsets = [range(0, 8), range(8, 16), range(16, 24)]
+    j_offsets = [range(0, 8), range(8, 16), range(16, 24)]
+
+    for row in trimmed_grid:
+        for tile in row:
+            for pixel_i, pixel_row in enumerate(tile.pixels):
+                for pixel_j, pixel in enumerate(pixel_row):
+                    pixels[i][j] = pixel
+
+    return Image(image_size, tuple(tuple(row) for row in pixels))
 
 
 if __name__ == "__main__":
     filename = sys.argv[1]
     tiles_lookup = build_tiles(filename)
-    grid_size = int(len(tiles_lookup) ** 0.5)
 
-    corner_tiles = find_corner_tiles(tiles_lookup)
-    answer = reduce(lambda total, tile_id: total * tile_id, corner_tiles, 1)
-    print(f"{corner_tiles=}")
+    grid = None
+    for tile in tiles_lookup.values():
+        grid = top_left_corner_possibilities(tiles_lookup, tile)
+        if grid:
+            break
+
+    assert grid
+    corner_tiles = grab_corner_tiles(grid)
+    answer = reduce(lambda total, tile: total * tile.tile_id, corner_tiles, 1)
+    assert answer == 20899048083289
     print(f"Part 1: Corner Tile Product {answer}")
 
-    # The corner tiles can be in any of 24 orientations
-    for combo in permutations(corner_tiles, 4):
-        grid = [[None] * grid_size for _ in range(grid_size)]
-        available_tiles = tiles_lookup.copy()
-
-        # Assign these to the top left, top right, bottom right, bottom left slots accordingly
-        top_left, top_right, bottom_right, bottom_left = combo
-
-        grid[0][0] = top_left
-        grid[0][-1] = top_right
-        grid[-1][0] = bottom_left
-        grid[-1][-1] = bottom_right
-
-        # Remove our corner tiles from consideration
-        for tile_id in combo:
-            del available_tiles[tile_id]
-
-        # Starting with our top left corner, there should be one and only one remaining tile that matches on exactly 2 edges
-        # If there isn't, this is an invalid corner tile combination
-
-        # tile = tiles_lookup[top_left]
-        # matching_counts = []
-        # for tile_ids in available_tiles.keys():
-        #     count = border_matches()
-
-        # print(f"corners={combo} {matching_counts=}")
+    # stitch_tiles(grids[0])
