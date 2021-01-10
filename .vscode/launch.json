@@ -10,9 +10,35 @@
         "request":"launch",
         "program":"${file}",
         "console":"integratedTerminal",
-        "args": ["day10/test_input.txt"]
-        // "args": ["day9/input.txt", "25"]
-
+        // "args": ["day12/test_input.txt"]
+        // "args": ["day12/input.txt"]
+        // "args": ["day13/test_input.txt"]
+        // "args": ["day13/input.txt"]
+        // "args": ["day14/test_input.txt"]
+        // "args": ["day14/input.txt"]
+        // "args": ["day15/test_input.txt"]
+        // "args": ["day15/input.txt"]
+        // "args": ["day16/test_input.txt"]
+        // "args": ["day16/input.txt"]
+        // "args": ["day17/test_input.txt"]
+        // "args": ["day17/input.txt"]
+    
+        "args": ["day18/test_input.txt"]
+        // "args": ["day18/input.txt"]
+        // "args": ["day19/test_input.txt"]
+        // "args": ["day19/input.txt"]
+        // "args": ["day20/test_input.txt"]
+        // "args": ["day20/input.txt"]
+        // "args": ["day21/test_input.txt"]
+        // "args": ["day21/input.txt"]
+        // "args": ["day22/test_input.txt"]
+        // "args": ["day22/input.txt"]
+        // "args": ["day23/test_input.txt"]
+        // "args": ["day23/input.txt"]
+        // "args": ["day24/test_input.txt"]
+        // "args": ["day24/input.txt"]
+        // "args": ["day25/test_input.txt"]
+        // "args": ["day25/input.txt"]
     }
 
     ]
